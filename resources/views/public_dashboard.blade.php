@@ -8,13 +8,13 @@
     <div class="relative w-full max-w-4xl mx-auto overflow-hidden rounded-xl shadow-lg mb-12">
         <div id="image-slider" class="flex transition-transform duration-500 ease-in-out">
             <div class="w-full flex-shrink-0">
-                <img src="https://placehold.co/800x400/FFD700/000000?text=Slide+1" alt="Slide 1" class="w-full h-auto object-cover rounded-xl border-4 border-yellow-400 shadow-gold-glow">
+                <img src="images/gambar1.jpg" alt="Slide 1" class="w-full h-auto object-cover rounded-xl border-4 border-yellow-400 shadow-gold-glow">
             </div>
             <div class="w-full flex-shrink-0">
-                <img src="https://placehold.co/800x400/ADD8E6/000000?text=Slide+2" alt="Slide 2" class="w-full h-auto object-cover rounded-xl border-4 border-yellow-400 shadow-gold-glow">
+                <img src="images/gambar2.jpg" alt="Slide 2" class="w-full h-auto object-cover rounded-xl border-4 border-yellow-400 shadow-gold-glow">
             </div>
             <div class="w-full flex-shrink-0">
-                <img src="https://placehold.co/800x400/90EE90/000000?text=Slide+3" alt="Slide 3" class="w-full h-auto object-cover rounded-xl border-4 border-yellow-400 shadow-gold-glow">
+                <img src="images/gambar3.jpg" alt="Slide 3" class="w-full h-auto object-cover rounded-xl border-4 border-yellow-400 shadow-gold-glow">
             </div>
         </div>
         <div class="absolute bottom-4 left-0 right-0 flex justify-center space-x-2">
