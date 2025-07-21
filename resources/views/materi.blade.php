@@ -2,7 +2,7 @@
 @extends('layouts.app')
 
 @section('content')
-    <h1 class="text-3xl font-bold text-center text-gray-800">Halaman Materi Pembelajaran</h1>
+    <h1 class="text-3xl font-bold text-center text-gray-800"></h1>
     <p class="text-center mt-4 text-gray-600">Di sini akan ditampilkan daftar materi pembelajaran yang relevan.</p>
 
     <div class="space-y-4 mt-6">

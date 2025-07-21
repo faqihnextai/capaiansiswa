@@ -94,7 +94,25 @@ class AdminController extends Controller
      */
     public function publicDashboard()
     {
-        return view('public_dashboard');
+        $classes = Group::select('class_grade')->distinct()->orderBy('class_grade')->pluck('class_grade');
+        $groups = Group::with('students')->orderBy('name')->get();
+        $students = Student::with('group')->orderBy('name')->get();
+
+        $studentAchievementsData = Student::with(['studentAchievements.achievement', 'group'])->get()->mapWithKeys(function ($student) {
+            $achievements = $student->studentAchievements->map(function ($sa) {
+                return [
+                    'id' => $sa->achievement->id,
+                    'kriteria' => $sa->achievement->description,
+                    'status' => (bool) $sa->is_completed,
+                    'student_achievement_id' => $sa->id,
+                ];
+            })->toArray();
+            return [$student->id => $achievements];
+        })->toArray();
+
+        $dummyAchievements = $studentAchievementsData; // Reuse the same data structure for consistency
+
+        return view('public_dashboard', compact('classes', 'groups', 'students', 'dummyAchievements'));
     }
 
     /**
@@ -246,53 +264,6 @@ class AdminController extends Controller
     {
         $materials = Material::orderBy('created_at', 'desc')->get();
         return view('materi', compact('materials'));
-    }
-
-    /**
-     * Menyimpan aset baru.
-     */
-    public function storeMaterial(Request $request)
-    {
-        $request->validate([
-            'title' => 'required|string|max:255',
-            'class_grade' => 'required|in:4,5,6',
-            'asset_type' => 'required|in:link,file,text',
-            'file_asset' => 'nullable|file|mimes:ppt,pptx,pdf|max:10240', // Max 10MB
-            'link_asset' => 'nullable|url',
-            'text_asset' => 'nullable|string',
-        ]);
-
-        $content = null;
-        if ($request->asset_type == 'file' && $request->hasFile('file_asset')) {
-            $content = $request->file('file_asset')->store('materials', 'public'); // Simpan di storage/app/public/materials
-        } elseif ($request->asset_type == 'link') {
-            $content = $request->link_asset;
-        } elseif ($request->asset_type == 'text') {
-            $content = $request->text_asset;
-        }
-
-        Material::create([
-            'title' => $request->title,
-            'class_grade' => $request->class_grade,
-            'asset_type' => $request->asset_type,
-            'content' => $content,
-        ]);
-
-        return redirect()->route('admin.materials.show')->with('success', 'Aset berhasil diunggah!');
-    }
-
-    /**
-     * Menghapus aset.
-     */
-    public function destroyMaterial(Material $material)
-    {
-        if ($material->asset_type == 'file') {
-            // Hapus file dari storage jika ada
-            Storage::disk('public')->delete($material->content);
-        }
-        $material->delete();
-
-        return redirect()->route('admin.materials.show')->with('success', 'Aset berhasil dihapus!');
     }
 
     /**

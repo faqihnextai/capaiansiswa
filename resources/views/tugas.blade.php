@@ -2,7 +2,7 @@
 @extends('layouts.app')
 
 @section('content')
-    <h1 class="text-3xl font-bold text-center text-gray-800">Halaman Tugas & Materi</h1>
+    <h1 class="text-3xl font-bold text-center text-gray-800"></h1>
     <p class="text-center mt-4 text-gray-600">Di sini akan ditampilkan daftar tugas dan materi pembelajaran yang relevan.</p>
 
     <div class="container mx-auto p-6 mt-8 bg-white rounded-xl shadow-lg">

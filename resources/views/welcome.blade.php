@@ -1,7 +1,7 @@
 @extends('layouts.app') {{-- Menggunakan layout utama yang sudah dibuat --}}
 
 @section('content')
-    <h1 class="text-4xl font-extrabold mb-8 text-center text-gray-800">Diskusi Siswa</h1>
+    <h1 class="text-4xl font-extrabold mb-8 text-center text-gray-800"></h1>
 
     {{-- Bagian filter kelas dihilangkan sesuai permintaan --}}
     {{-- Kode dropdown kelas sebelumnya yang dihapus:
