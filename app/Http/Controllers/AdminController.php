@@ -267,6 +267,53 @@ class AdminController extends Controller
     }
 
     /**
+     * Menyimpan aset baru.
+     */
+    public function storeMaterial(Request $request)
+    {
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'class_grade' => 'required|in:4,5,6',
+            'asset_type' => 'required|in:link,file,text',
+            'file_asset' => 'nullable|file|mimes:ppt,pptx,pdf|max:10240', // Max 10MB
+            'link_asset' => 'nullable|url',
+            'text_asset' => 'nullable|string',
+        ]);
+
+        $content = null;
+        if ($request->asset_type == 'file' && $request->hasFile('file_asset')) {
+            $content = $request->file('file_asset')->store('materials', 'public'); // Simpan di storage/app/public/materials
+        } elseif ($request->asset_type == 'link') {
+            $content = $request->link_asset;
+        } elseif ($request->asset_type == 'text') {
+            $content = $request->text_asset;
+        }
+
+        Material::create([
+            'title' => $request->title,
+            'class_grade' => $request->class_grade,
+            'asset_type' => $request->asset_type,
+            'content' => $content,
+        ]);
+
+        return redirect()->route('admin.materials.show')->with('success', 'Aset berhasil diunggah!');
+    }
+
+    /**
+     * Menghapus aset.
+     */
+    public function destroyMaterial(Material $material)
+    {
+        if ($material->asset_type == 'file') {
+            // Hapus file dari storage jika ada
+            Storage::disk('public')->delete($material->content);
+        }
+        $material->delete();
+
+        return redirect()->route('admin.materials.show')->with('success', 'Aset berhasil dihapus!');
+    }
+
+    /**
      * Menampilkan halaman tugas dengan materi yang relevan.
      */
     public function showTugas()
