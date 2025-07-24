@@ -9,17 +9,19 @@ class Group extends Model
 {
     use HasFactory;
 
-    // Kolom yang bisa diisi secara massal
     protected $fillable = [
         'name',
         'class_grade',
     ];
 
-    /**
-     * Definisi relasi: Satu kelompok memiliki banyak siswa.
-     */
     public function students()
     {
         return $this->hasMany(Student::class);
+    }
+
+    // Definisikan relasi many-to-many dengan Task
+    public function tasks()
+    {
+        return $this->belongsToMany(Task::class);
     }
 }

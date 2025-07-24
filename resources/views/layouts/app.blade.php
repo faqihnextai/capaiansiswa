@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Website Pembelajaran Siswa</title>
     {{-- Favicon --}}
     <link rel="icon" type="image/png" href="{{ asset('images/logo.png') }}">
@@ -417,7 +418,7 @@
             const pageLocationText = document.getElementById('pageLocationText');
 
             // Initial loading screen logic
-            const minDisplayTime = 3000; // 3 detik
+            const minDisplayTime = 500; // 3 detik
             let startTime = Date.now();
 
             // Fungsi untuk menampilkan loading screen
@@ -506,9 +507,9 @@
                     showLoadingScreen();
 
                     // Setelah loading screen selesai, baru navigasi
-                    setTimeout(() => {
-                        window.location.href = targetUrl; // Navigasi ke URL tujuan
-                    }, minDisplayTime); // Durasi loading screen
+                   // Navigasi segera setelah menampilkan loading screen
+                    window.location.href = targetUrl;
+                    // setTimeout tidak diperlukan lagi di sini jika ingin navigasi instan
                 });
             });
 
@@ -598,5 +599,6 @@
             setActiveBottomMenuItem();
         });
     </script>
+     @yield('scripts')
 </body>
 </html>

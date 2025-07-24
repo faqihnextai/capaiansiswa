@@ -48,11 +48,12 @@
             <div class="bg-green-100 p-6 rounded-lg shadow-md">
                 <h3 class="text-xl font-semibold text-green-800 mb-3">Kelola Tugas & Poin</h3>
                 <p class="text-green-700">Berikan poin ceklist untuk tugas yang sudah disubmit siswa.</p>
-                <a href="#" class="mt-4 inline-block text-green-600 hover:underline">Lihat Detail &rarr;</a>
+                <a href="{{ route(name:'admin.tasks.index') }}" class="mt-4 inline-block text-green-600 hover:underline">Lihat Detail &rarr;</a>
             </div>
             <div class="bg-yellow-100 p-6 rounded-lg shadow-md">
                 <h3 class="text-xl font-semibold text-yellow-800 mb-3">Kelola Materi & Aset</h3>
                 <p class="text-yellow-700">Unggah dan atur aset pembelajaran seperti dokumen atau video.</p>
+                <a href="{{ route('admin.materials.show') }}" class="mt-4 inline-block text-yellow-600 hover:underline">Kelola Aset &rarr;</a>
             </div>
             <div class="bg-purple-100 p-6 rounded-lg shadow-md">
                 <h3 class="text-xl font-semibold text-purple-800 mb-3">Kelola Capaian Siswa</h3>
