@@ -8,6 +8,10 @@ use App\Models\Achievement;
 use App\Models\StudentAchievement;
 use App\Models\Material;
 use App\Models\Task;
+use App\Models\Question;
+use App\Models\Submission;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage; // Import Storage facade
 
 class StoreController extends Controller
 {
@@ -116,7 +120,7 @@ class StoreController extends Controller
     public function storeTask(Request $request)
     {
         // --- DEBUGGING START ---
-        // Log::info('Request Data (storeTask):', $request->all());
+        Log::info('Request Data (storeTask):', $request->all());
         // --- DEBUGGING END ---
 
         // Validasi data tugas utama
@@ -127,13 +131,12 @@ class StoreController extends Controller
             'deadline_time' => 'required|date_format:H:i',
             'group_ids' => 'nullable|array',
             'group_ids.*' => 'exists:groups,id',
-            'student_ids' => 'nullable|array', // Tambahkan validasi untuk student_ids
-            'student_ids.*' => 'exists:students,id', // Pastikan ID siswa ada di tabel students
+            'student_ids' => 'nullable|array',
+            'student_ids.*' => 'exists:students,id',
             'questions' => 'required|array|min:1',
             'questions.*.type' => 'required|in:multiple_choice,essay,true_false,matching,image_input',
             'questions.*.question_text' => 'required|string',
             'questions.*.score' => 'nullable|integer|min:0',
-            // Validasi kondisional untuk tipe soal
             'questions.*.options.a' => 'required_if:questions.*.type,multiple_choice|string|max:255',
             'questions.*.options.b' => 'required_if:questions.*.type,multiple_choice|string|max:255',
             'questions.*.options.c' => 'required_if:questions.*.type,multiple_choice|string|max:255',
@@ -142,7 +145,7 @@ class StoreController extends Controller
             'questions.*.matching_pairs' => 'required_if:questions.*.type,matching|array|min:1',
             'questions.*.matching_pairs.*.left' => 'required|string|max:255',
             'questions.*.matching_pairs.*.right' => 'required|string|max:255',
-            'questions.*.media' => 'nullable|file|image|max:5120', // Max 5MB untuk gambar
+            'questions.*.media' => 'nullable|file|image|max:5120',
         ]);
 
         $deadline = $request->deadline_date . ' ' . $request->deadline_time;
@@ -153,19 +156,40 @@ class StoreController extends Controller
             'deadline' => $deadline,
         ]);
 
-        // 2. Kaitkan tugas dengan kelompok atau siswa
+        // Logika pengaitan tugas dengan kelompok atau siswa
+        // Inisialisasi array untuk menyimpan ID siswa yang akan dikaitkan
+        $studentsToAttach = [];
+
         if ($request->has('student_ids') && !empty($request->student_ids)) {
-            $task->groups()->detach(); // Detach all groups if students are specifically chosen
-            $task->students()->attach($request->student_ids);
+            // Jika siswa spesifik dipilih, gunakan ID siswa tersebut
+            $studentsToAttach = $request->student_ids;
+            Log::info('Task attached to specific students:', ['student_ids' => $studentsToAttach]);
         } elseif ($request->has('group_ids') && !empty($request->group_ids)) {
-            $task->students()->detach(); // Detach all students if groups are chosen
-            $task->groups()->attach($request->group_ids);
+            // Jika kelompok dipilih, ambil semua siswa dari kelompok tersebut
+            $studentsToAttach = Student::whereIn('group_id', $request->group_ids)->pluck('id')->toArray();
+            $task->groups()->attach($request->group_ids); // Juga kaitkan dengan kelompok yang dipilih
+            Log::info('Task attached to students from selected groups:', ['group_ids' => $request->group_ids, 'student_ids' => $studentsToAttach]);
         } else {
-            // Jika tidak ada kelompok atau siswa yang dipilih, kaitkan dengan semua kelompok di kelas yang sama
-            $allGroupsInClass = Group::where('class_grade', $request->class_grade)->pluck('id');
-            $task->students()->detach();
-            $task->groups()->attach($allGroupsInClass);
+            // Jika tidak ada student_ids maupun group_ids yang dipilih,
+            // Anda bisa memilih untuk tidak mengaitkan dengan siapa-siapa,
+            // atau mengaitkan dengan semua siswa di kelas yang sama.
+            // Saat ini, saya akan membiarkannya tidak mengaitkan jika tidak ada pilihan eksplisit.
+            // Jika Anda ingin mengaitkan dengan semua siswa di kelas, aktifkan kembali kode di bawah:
+            /*
+            $allStudentsInClass = Student::whereHas('group', function ($query) use ($request) {
+                $query->where('class_grade', $request->class_grade);
+            })->pluck('id')->toArray();
+            $studentsToAttach = $allStudentsInClass;
+            Log::info('Task attached to all students in class (default):', ['class_grade' => $request->class_grade, 'student_ids' => $studentsToAttach]);
+            */
+            Log::info('No specific students or groups selected. Task will not be attached to any students by default.');
         }
+
+        // Lakukan attach hanya jika ada siswa yang akan dikaitkan
+        if (!empty($studentsToAttach)) {
+            $task->students()->attach($studentsToAttach);
+        }
+
 
         // 3. Loop melalui setiap soal dan simpan
         foreach ($request->questions as $qId => $questionData) {
@@ -207,7 +231,7 @@ class StoreController extends Controller
 
             $task->questions()->create([
                 'type' => $questionData['type'],
-                'content' => $questionData['question_text'], // Pastikan 'content' diisi dengan 'question_text'
+                'content' => $questionData['question_text'],
                 'options' => $options,
                 'correct_answer' => $correctAnswer,
                 'score' => $score,
@@ -215,41 +239,84 @@ class StoreController extends Controller
             ]);
         }
 
-        return redirect()->route('admin.tasks.index')->with('success', 'Tugas dan soal berhasil dibuat!');
+        return redirect()->route('admin.task_manager.tasks')->with('success', 'Tugas dan soal berhasil dibuat!');
     }
 
-        /**
+    /**
      * Menangani pengumpulan jawaban tugas oleh siswa.
      */
     public function submitTask(Request $request, Task $task)
     {
+        // Validasi umum untuk submission
+        $validationRules = [
+            'student_id' => 'required|exists:students,id',
+            'answers' => 'required|array',
+            // 'answers.*.question_id' => 'required|exists:questions,id', // Ini akan dihandle di loop
+        ];
+
+        // Tambahkan validasi spesifik berdasarkan tipe soal
+        foreach ($request->input('answers') as $index => $answer) {
+            $questionId = $answer['question_id'] ?? null;
+            $question = Question::find($questionId);
+
+            if ($question) {
+                $validationRules["answers.{$index}.question_id"] = 'required|exists:questions,id'; // Pastikan question_id ada dan valid
+
+                if ($question->type === 'image_input') {
+                    $validationRules["answers.{$index}.student_answer_file"] = 'nullable|file|image|max:5120'; // Untuk file baru
+                    $validationRules["answers.{$index}.student_answer_existing_path"] = 'nullable|string'; // Untuk path yang sudah ada
+                } elseif ($question->type === 'matching') {
+                    // Validasi untuk soal matching (mengharapkan array of objects)
+                    $validationRules["answers.{$index}.student_answer"] = 'nullable|array';
+                    $validationRules["answers.{$index}.student_answer.*.left"] = 'required|string|max:255';
+                    $validationRules["answers.{$index}.student_answer.*.right"] = 'required|string|max:255';
+                } else {
+                    // Untuk tipe soal lain (multiple_choice, essay, true_false)
+                    $validationRules["answers.{$index}.student_answer"] = 'nullable|string';
+                }
+            }
+        }
+
         try {
-            $validatedData = $request->validate([
-                'student_id' => 'required|exists:students,id',
-                'answers' => 'required|array',
-                // Pastikan validasi untuk 'answers.*.question_id' dan 'answers.*.student_answer'
-                // sudah sesuai dengan struktur data yang kamu kirim dari frontend.
-                // Contoh: jika kamu mengirim answers sebagai array asosiatif (question_id => answer_value)
-                // maka validasi 'answers.*.question_id' mungkin tidak diperlukan atau perlu disesuaikan.
-                // Untuk saat ini, asumsikan struktur yang kamu kirim adalah array of objects
-                // seperti { question_id: X, student_answer: Y }
-                'answers.*.question_id' => 'required|exists:questions,id',
-                'answers.*.student_answer' => 'nullable', // Jawaban bisa null jika tidak diisi
-                // Jika kamu mengizinkan unggahan file (misal untuk tipe image_input), tambahkan validasi di sini
-                'answers.*' => 'nullable', // Ini penting agar Laravel tidak error jika ada field lain di 'answers'
-            ]);
+            $validatedData = $request->validate($validationRules);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            // Jika validasi gagal, kembalikan response JSON dengan error
+            Log::error('Validation Error in submitTask:', ['errors' => $e->errors(), 'request' => $request->all()]);
             return response()->json([
                 'success' => false,
                 'message' => 'Validasi gagal.',
                 'errors' => $e->errors()
-            ], 422); // Kode status 422 Unprocessable Entity
+            ], 422);
         }
+
         $studentId = $request->student_id;
         $studentAnswers = $request->answers;
 
-        // Temukan atau buat submission baru
+        // Pastikan siswa yang mengumpulkan tugas memang berhak mengerjakan tugas ini
+        $student = Student::find($studentId);
+        $isTaskForStudent = false;
+        if ($task->students->isEmpty() && $task->groups->isEmpty()) {
+            $studentGroup = $student->group;
+            if ($studentGroup && $task->class_grade == $studentGroup->class_grade) {
+                $isTaskForStudent = true;
+            }
+        } elseif ($task->students->isNotEmpty()) {
+            if ($task->students->contains($studentId)) {
+                $isTaskForStudent = true;
+            }
+        } elseif ($task->groups->isNotEmpty()) {
+            if ($task->groups->contains($student->group_id)) {
+                $isTaskForStudent = true;
+            }
+        }
+
+        if (!$isTaskForStudent) {
+            Log::warning('Unauthorized submission attempt:', ['student_id' => $studentId, 'task_id' => $task->id]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki izin untuk mengerjakan tugas ini.'
+            ], 403); // Forbidden
+        }
+
         $submission = Submission::firstOrNew([
             'task_id' => $task->id,
             'student_id' => $studentId,
@@ -261,44 +328,54 @@ class StoreController extends Controller
         foreach ($studentAnswers as $submittedAnswer) {
             $question = Question::find($submittedAnswer['question_id']);
             if ($question) {
-                $studentAnswer = $submittedAnswer['student_answer'];
+                $currentStudentAnswer = null; // Inisialisasi untuk setiap iterasi
+
+                if ($question->type === 'image_input') {
+                    // Tangani upload file gambar
+                    if ($request->hasFile("answers.{$submittedAnswer['question_id']}.student_answer_file")) {
+                        $imageFile = $request->file("answers.{$submittedAnswer['question_id']}.student_answer_file");
+                        $currentStudentAnswer = $imageFile->store('submission_images', 'public'); // Simpan gambar
+                        Log::info('Image uploaded:', ['path' => $currentStudentAnswer]);
+                    } elseif (isset($submittedAnswer['student_answer_existing_path'])) {
+                        // Jika tidak ada file baru diunggah, gunakan path gambar yang sudah ada (jika ada)
+                        $currentStudentAnswer = $submittedAnswer['student_answer_existing_path'];
+                    }
+                } else {
+                    // Untuk tipe soal lain, ambil dari input biasa
+                    $currentStudentAnswer = $submittedAnswer['student_answer'] ?? null;
+                }
+
                 $questionScore = $question->score ?? 0;
                 $isCorrect = false;
 
-                // Simpan jawaban siswa untuk setiap soal
                 $answers[$question->id] = [
-                    'question_text' => $question->question_text,
+                    'question_text' => $question->content,
                     'type' => $question->type,
-                    'student_answer' => $studentAnswer,
+                    'student_answer' => $currentStudentAnswer, // Gunakan jawaban yang sudah diproses
                     'correct_answer' => json_decode($question->correct_answer, true),
-                    'score' => 0, // Inisialisasi skor untuk jawaban ini
+                    'score' => 0,
                     'is_correct' => false,
                 ];
 
                 if ($question->type === 'multiple_choice' || $question->type === 'true_false') {
                     $correctAnswer = json_decode($question->correct_answer, true);
-                    if ((string) $studentAnswer === (string) $correctAnswer) {
+                    if ((string) $currentStudentAnswer === (string) $correctAnswer) {
                         $isCorrect = true;
                     }
                 } elseif ($question->type === 'essay' || $question->type === 'image_input') {
-                    // Jawaban esai dan input gambar dinilai secara manual oleh admin,
-                    // jadi tidak ada penilaian otomatis di sini.
-                    // Jika ada kunci jawaban, bisa disimpan untuk referensi admin.
-                    $isCorrect = false; // Set false secara default, admin yang akan menilai
+                    // Untuk esai dan image_input, nilai tidak otomatis di sini.
+                    // Penilaian manual oleh admin.
+                    $isCorrect = false;
                 } elseif ($question->type === 'matching') {
-                    $correctPairs = json_decode($question->options, true); // Ini adalah kunci jawaban pasangan
-                    // Log::info('Correct Pairs:', $correctPairs);
-                    // Log::info('Student Answer for Matching:', $studentAnswer);
-
-                    if (is_array($studentAnswer) && count($studentAnswer) === count($correctPairs)) {
+                    $correctPairs = json_decode($question->options, true);
+                    if (is_array($currentStudentAnswer) && count($currentStudentAnswer) === count($correctPairs)) {
                         $allPairsCorrect = true;
                         foreach ($correctPairs as $index => $pair) {
-                            // Bandingkan jawaban siswa dengan kunci jawaban untuk setiap pasangan
                             // Pastikan indeks ada dan nilai 'left' dan 'right' cocok
                             if (
-                                !isset($studentAnswer[$index]) ||
-                                (string) ($studentAnswer[$index]['left'] ?? '') !== (string) ($pair['left'] ?? '') ||
-                                (string) ($studentAnswer[$index]['right'] ?? '') !== (string) ($pair['right'] ?? '')
+                                !isset($currentStudentAnswer[$index]) ||
+                                (string) ($currentStudentAnswer[$index]['left'] ?? '') !== (string) ($pair['left'] ?? '') ||
+                                (string) ($currentStudentAnswer[$index]['right'] ?? '') !== (string) ($pair['right'] ?? '')
                             ) {
                                 $allPairsCorrect = false;
                                 break;
@@ -319,7 +396,7 @@ class StoreController extends Controller
         $submission->answers = json_encode($answers);
         $submission->is_completed = true;
         $submission->submitted_at = now();
-        $submission->score = $totalScore; // Ini akan menyimpan total nilai yang dihitung otomatis
+        $submission->score = $totalScore;
         $submission->save();
 
         return response()->json(['success' => true, 'message' => 'Tugas berhasil dikumpulkan!', 'score' => $totalScore]);

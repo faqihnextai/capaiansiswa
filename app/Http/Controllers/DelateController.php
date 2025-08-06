@@ -37,11 +37,26 @@ class DelateController extends Controller
             if ($question->media_path && Storage::disk('public')->exists($question->media_path)) {
                 Storage::disk('public')->delete($question->media_path);
             }
+            // Hapus soal
             $question->delete();
         }
+
+        // Hapus relasi tugas dengan kelompok (jika ada)
+        $task->groups()->detach();
+
+        // Hapus relasi tugas dengan siswa (jika ada)
+        $task->students()->detach();
+
+        // Hapus semua submission terkait dengan tugas ini
+        // Ini akan menghapus entri di tabel 'submissions' yang terkait dengan task_id ini
+        Submission::where('task_id', $task->id)->delete();
+
+
+        // Hapus tugas itu sendiri
         $task->delete();
 
-        return redirect()->route('admin.tasks.index')->with('success', 'Tugas berhasil dihapus!');
+        // Redirect ke halaman manage_submission dengan pesan sukses
+        return redirect()->route('admin.task_manager_submission')->with('success', 'Tugas berhasil dihapus!');
     }
 
     /* ========== DELETE SUBMISSIONS ========== */

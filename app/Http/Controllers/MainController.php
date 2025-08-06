@@ -15,6 +15,7 @@ use App\Models\Material;
 use App\Models\Task;
 use App\Models\Question;
 use App\Models\Submission;
+use Illuminate\Support\Facades\Log; // Tambahkan ini untuk debugging
 
 class MainController extends Controller
 {
@@ -104,13 +105,28 @@ class MainController extends Controller
         $groups = Group::with('students')->orderBy('name')->get();
         $students = Student::with('group')->orderBy('name')->get();
         $materials = Material::orderBy('created_at', 'desc')->get();
-        $tasks = Task::with(['groups', 'students'])->orderBy('deadline', 'asc')->get();
+
+        // Ambil ID siswa yang sedang dipilih dari session atau query parameter
+        $selectedStudentId = $request->session()->get('siswa_id') ?? $request->query('student');
+
+        // Query tugas:
+        // 1. Ambil semua tugas dengan relasi groups dan students
+        $tasksQuery = Task::with(['groups', 'students'])->orderBy('deadline', 'asc');
+
+        // 2. Filter tugas berdasarkan siswa yang dipilih (jika ada)
+        if ($selectedStudentId) {
+            $tasksQuery->whereHas('students', function ($query) use ($selectedStudentId) {
+                $query->where('students.id', $selectedStudentId);
+            });
+        }
+
+        $tasks = $tasksQuery->get();
 
         $selectedClass = $request->session()->get('siswa_role') ?? $request->query('class');
         $selectedGroup = $request->session()->get('siswa_group') ?? $request->query('group');
-        $selectedStudent = $request->session()->get('siswa_id') ?? $request->query('student');
+        // $selectedStudent sudah diambil di atas
 
-        return view('tugas', compact('materials', 'tasks', 'classes', 'groups', 'students', 'selectedClass', 'selectedGroup', 'selectedStudent'));
+        return view('tugas', compact('materials', 'tasks', 'classes', 'groups', 'students', 'selectedClass', 'selectedGroup', 'selectedStudentId')); // Ubah $selectedStudent menjadi $selectedStudentId
     }
 
     /**
@@ -127,11 +143,36 @@ class MainController extends Controller
      */
     public function showStudentTaskDetail(Request $request, Task $task)
     {
-        $task->load('questions');
-        $studentId = $request->query('student_id') ?? session('siswa_id') ?? Student::first()->id;
+        $task->load('questions', 'students'); // Load relasi students pada task
+
+        // Ambil ID siswa yang sedang login/dipilih dari session atau query parameter
+        $studentId = $request->query('student_id') ?? session('siswa_id');
+
+        // Jika tidak ada studentId yang ditemukan, arahkan kembali dengan error
+        if (!$studentId) {
+            return redirect()->route('public.tugas')->with('error', 'Siswa tidak teridentifikasi. Silakan pilih siswa terlebih dahulu.');
+        }
+
         $student = Student::find($studentId);
-        if (!$student) {
-            return redirect()->route('public.tugas')->with('error', 'Siswa tidak ditemukan.');
+
+        // Validasi apakah siswa yang sedang mengakses berhak mengerjakan tugas ini
+        // Cek apakah tugas ini ditujukan untuk semua siswa di kelas tertentu, atau siswa spesifik
+        $isTaskForStudent = false;
+        if ($task->students->isEmpty()) {
+            // Jika task tidak punya relasi siswa spesifik, berarti untuk semua siswa di kelas tersebut
+            $studentGroup = $student->group;
+            if ($studentGroup && $task->class_grade == $studentGroup->class_grade) {
+                $isTaskForStudent = true;
+            }
+        } else {
+            // Jika task punya relasi siswa spesifik, cek apakah siswa ini termasuk
+            if ($task->students->contains($studentId)) {
+                $isTaskForStudent = true;
+            }
+        }
+
+        if (!$isTaskForStudent) {
+            return redirect()->route('public.tugas')->with('error', 'Anda tidak memiliki izin untuk mengerjakan tugas ini.');
         }
 
         $submission = Submission::where('task_id', $task->id)

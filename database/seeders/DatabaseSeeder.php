@@ -19,5 +19,6 @@ class DatabaseSeeder extends Seeder
             AdminSeeder::class,
             // ... seeder lainnya
         ]);
+        $this->call(TaskQuestionSeeder::class);
     }
 }
