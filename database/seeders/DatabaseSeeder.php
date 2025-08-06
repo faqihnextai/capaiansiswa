@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
          $this->call([
             GroupSeeder::class, // Pastikan ini dipanggil sebelum StudentSeeder
             StudentSeeder::class,
+            AdminSeeder::class,
             // ... seeder lainnya
         ]);
     }
