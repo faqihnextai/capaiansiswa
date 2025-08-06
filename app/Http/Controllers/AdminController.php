@@ -172,7 +172,7 @@ class AdminController extends Controller
         // Ambil juga data groups untuk dropdown atau keperluan lain
         $groups = Group::with('students')->orderBy('name')->get();
         // Kirimkan variabel tasks dan groups ke view
-        return view('admin.task_manager.index', compact('tasks', 'groups'));
+        return view('admin.task_manager.tasks', compact('tasks', 'groups')); // UBAH INI DARI 'index' MENJADI 'tasks'
     }
 
     /**
@@ -196,10 +196,75 @@ class AdminController extends Controller
         return redirect()->route('admin.login');
     }
 
-    public function manageSubmissions()
+    /**
+     * Menampilkan halaman pengelolaan pengumpulan tugas untuk admin.
+     */
+    public function manageSubmissions(Request $request)
     {
-        $submissions = Submission::with(['task', 'student'])->orderBy('submitted_at', 'desc')->get();
+        // Ambil semua tugas dengan relasi yang diperlukan
         $tasks = Task::with(['groups', 'students'])->orderBy('deadline', 'asc')->get();
-        return view('admin.task_manager.manage_submission', compact('submissions', 'tasks'));
+
+        // Mulai query untuk submissions
+        $submissionsQuery = Submission::with(['task', 'student'])
+            ->orderBy('submitted_at', 'desc');
+
+        // Filter berdasarkan task_id jika ada di request
+        if ($request->has('task_id') && !empty($request->task_id)) {
+            $submissionsQuery->where('task_id', $request->task_id);
+        }
+
+        // Filter berdasarkan student_id jika ada di request
+        if ($request->has('student_id') && !empty($request->student_id)) {
+            $submissionsQuery->where('student_id', $request->student_id);
+        }
+
+        $submissions = $submissionsQuery->get();
+
+        // Filter tasks yang akan ditampilkan di dropdown berdasarkan submissions yang ada
+        // Ini memastikan dropdown filter tugas hanya menampilkan tugas yang memiliki setidaknya satu submission
+        $taskIdsWithSubmissions = $submissions->pluck('task_id')->unique()->toArray();
+        $filteredTasksForDropdown = $tasks->filter(function ($task) use ($taskIdsWithSubmissions) {
+            return in_array($task->id, $taskIdsWithSubmissions);
+        });
+
+
+        // Ambil semua siswa untuk dropdown filter
+        $allStudents = Student::orderBy('name')->get();
+
+        return view('admin.task_manager.manage_submission', compact('submissions', 'tasks', 'allStudents'));
+    }
+     public function getSubmissionAnswers(Submission $submission)
+    {
+        // Load relasi task dan questions dari task untuk mendapatkan detail soal
+        $submission->load('task.questions');
+
+        $answersData = [];
+        // Decode kolom 'answers' dari submission
+        $submittedAnswers = json_decode($submission->answers, true);
+
+        if ($submittedAnswers) {
+            foreach ($submittedAnswers as $questionId => $answer) {
+                $question = $submission->task->questions->find($questionId);
+                if ($question) {
+                    $answersData[] = [
+                        'question_text' => $question->content,
+                        'question_type' => $question->type,
+                        'question_options' => json_decode($question->options, true), // Decode options jika ada
+                        'correct_answer' => json_decode($question->correct_answer, true), // Decode correct_answer
+                        'student_answer' => $answer['student_answer'] ?? null,
+                        'is_correct' => $answer['is_correct'] ?? false,
+                        'score' => $answer['score'] ?? 0,
+                        'media_path' => $question->media_path, // Path media soal jika ada
+                    ];
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'student_name' => $submission->student->name,
+            'task_title' => $submission->task->title,
+            'answers' => $answersData,
+        ]);
     }
 }

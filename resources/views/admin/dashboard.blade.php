@@ -78,7 +78,7 @@
             <div class="bg-green-100 p-6 rounded-lg shadow-md">
                 <h3 class="text-xl font-semibold text-green-800 mb-3">Kelola Tugas & Poin</h3>
                 <p class="text-green-700">Berikan poin ceklist untuk tugas yang sudah disubmit siswa.</p>
-                <a href="{{ route(name:'admin.tasks.index') }}" class="mt-4 inline-block text-green-600 hover:underline">Lihat Detail &rarr;</a>
+                <a href="{{ route(name:'admin.task_manager.tasks') }}" class="mt-4 inline-block text-green-600 hover:underline">Lihat Detail &rarr;</a>
             </div>
             <div class="bg-yellow-100 p-6 rounded-lg shadow-md">
                 <h3 class="text-xl font-semibold text-yellow-800 mb-3">Kelola Materi & Aset</h3>

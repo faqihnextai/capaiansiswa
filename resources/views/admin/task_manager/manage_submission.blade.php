@@ -26,6 +26,59 @@
         .submission-row:last-child {
             border-bottom: none;
         }
+        /* Styling untuk modal jawaban */
+        .answer-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .answer-modal-content {
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            max-width: 800px;
+            width: 90%;
+            max-height: 90vh; /* Batasi tinggi modal */
+            overflow-y: auto; /* Aktifkan scroll jika konten terlalu panjang */
+            position: relative;
+        }
+        .answer-modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #ef4444; /* red-500 */
+        }
+        .answer-item {
+            border: 1px solid #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.375rem;
+            margin-bottom: 1rem;
+            background-color: #f9fafb; /* gray-50 */
+        }
+        .answer-item img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 0.25rem;
+            margin-top: 0.5rem;
+        }
+        .correct-answer-text {
+            color: #10b981; /* green-500 */
+            font-weight: 600;
+        }
+        .incorrect-answer-text {
+            color: #ef4444; /* red-500 */
+            font-weight: 600;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -34,7 +87,7 @@
             <h1 class="text-white text-2xl font-bold">Dashboard Admin</h1>
             <nav>
                 <a href="{{ route('admin.dashboard') }}" class="text-white hover:text-blue-200 mr-4">Dashboard</a>
-                <a href="{{ route('admin.tasks.index') }}" class="text-white hover:text-blue-200 mr-4">Kembali ke Kelola Tugas</a>
+                <a href="{{ route('admin.task_manager.tasks') }}" class="text-white hover:text-blue-200 mr-4">Kembali ke Kelola Tugas</a>
                 <form action="{{ route('admin.logout') }}" method="POST" class="inline">
                     @csrf
                     <button type="submit" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105">
@@ -142,6 +195,13 @@
                                                 >
                                                     Nilai
                                                 </button>
+                                                <!-- Tombol Lihat Jawaban Siswa -->
+                                                <button
+                                                    class="open-answers-modal bg-purple-500 hover:bg-purple-600 text-white font-bold py-1 px-3 rounded text-xs transition duration-300 ml-2"
+                                                    data-submission-id="{{ $submission->id }}"
+                                                >
+                                                    Lihat Jawaban
+                                                </button>
                                             </td>
                                         </tr>
                                     @endforeach
@@ -184,8 +244,21 @@
         </div>
     </div>
 
+    <!-- Modal untuk Melihat Jawaban Siswa -->
+    <div id="answersModal" class="answer-modal-overlay hidden">
+        <div class="answer-modal-content">
+            <span class="answer-modal-close">&times;</span>
+            <h3 class="text-xl font-bold text-gray-900 mb-4">Jawaban Siswa: <span id="answerStudentName"></span></h3>
+            <p class="text-gray-700 mb-4">Tugas: <span id="answerTaskTitle"></span></p>
+            <div id="answersContent" class="space-y-4">
+                <!-- Konten jawaban akan dimuat di sini oleh JavaScript -->
+            </div>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // --- Logika Modal Nilai (Sudah Ada) ---
             const scoreModal = document.getElementById('scoreModal');
             const closeModalBtn = document.getElementById('closeModalBtn');
             const saveScoreBtn = document.getElementById('saveScoreBtn');
@@ -240,6 +313,114 @@
                     console.error('Error:', error);
                     alert('Terjadi kesalahan saat menyimpan nilai.');
                 });
+            });
+
+            // --- Logika Modal Jawaban Siswa (Baru) ---
+            const answersModal = document.getElementById('answersModal');
+            const closeAnswersModalBtn = answersModal.querySelector('.answer-modal-close');
+            const answerStudentNameSpan = document.getElementById('answerStudentName');
+            const answerTaskTitleSpan = document.getElementById('answerTaskTitle');
+            const answersContentDiv = document.getElementById('answersContent');
+
+            document.querySelectorAll('.open-answers-modal').forEach(button => {
+                button.addEventListener('click', async function() {
+                    const submissionId = this.dataset.submissionId;
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+                    try {
+                        const response = await fetch(`/admin/submissions/${submissionId}/answers`, {
+                            method: 'GET',
+                            headers: {
+                                'X-CSRF-TOKEN': csrfToken,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        const data = await response.json();
+
+                        if (data.success) {
+                            answerStudentNameSpan.innerText = data.student_name;
+                            answerTaskTitleSpan.innerText = data.task_title;
+                            answersContentDiv.innerHTML = ''; // Bersihkan konten sebelumnya
+
+                            data.answers.forEach((answer, index) => {
+                                const answerItemDiv = document.createElement('div');
+                                answerItemDiv.classList.add('answer-item');
+
+                                let studentAnswerDisplay = '';
+                                let correctAnswerDisplay = '';
+                                let isCorrectClass = '';
+
+                                // Tentukan tampilan jawaban siswa
+                                if (answer.question_type === 'image_input' && answer.student_answer) {
+                                    studentAnswerDisplay = `<p><strong>Jawaban Siswa:</strong> <a href="{{ asset('storage/') }}/${answer.student_answer}" target="_blank" class="text-blue-500 hover:underline">Lihat Gambar</a></p>`;
+                                } else if (Array.isArray(answer.student_answer)) {
+                                    studentAnswerDisplay = `<p><strong>Jawaban Siswa:</strong></p><ul>`;
+                                    answer.student_answer.forEach(item => {
+                                        if (typeof item === 'object' && item !== null && 'left' in item && 'right' in item) {
+                                            studentAnswerDisplay += `<li>${item.left} - ${item.right}</li>`;
+                                        } else {
+                                            studentAnswerDisplay += `<li>${item}</li>`;
+                                        }
+                                    });
+                                    studentAnswerDisplay += `</ul>`;
+                                } else {
+                                    studentAnswerDisplay = `<p><strong>Jawaban Siswa:</strong> ${answer.student_answer ?? '-'}</p>`;
+                                }
+
+                                // Tentukan tampilan jawaban benar
+                                if (answer.correct_answer !== null) {
+                                    if (Array.isArray(answer.correct_answer)) {
+                                        correctAnswerDisplay = `<p><strong>Jawaban Benar:</strong></p><ul>`;
+                                        answer.correct_answer.forEach(item => {
+                                             if (typeof item === 'object' && item !== null && 'left' in item && 'right' in item) {
+                                                correctAnswerDisplay += `<li>${item.left} - ${item.right}</li>`;
+                                            } else {
+                                                correctAnswerDisplay += `<li>${item}</li>`;
+                                            }
+                                        });
+                                        correctAnswerDisplay += `</ul>`;
+                                    } else {
+                                        correctAnswerDisplay = `<p><strong>Jawaban Benar:</strong> ${answer.correct_answer ?? '-'}</p>`;
+                                    }
+                                } else {
+                                    correctAnswerDisplay = `<p><strong>Jawaban Benar:</strong> (Tidak tersedia untuk tipe soal ini)</p>`;
+                                }
+
+
+                                // Tentukan kelas warna berdasarkan is_correct
+                                isCorrectClass = answer.is_correct ? 'correct-answer-text' : 'incorrect-answer-text';
+
+                                answerItemDiv.innerHTML = `
+                                    <p class="font-semibold text-gray-800">Soal ${index + 1}: ${answer.question_text}</p>
+                                    <p class="text-sm text-gray-600">Tipe: ${answer.question_type}</p>
+                                    ${studentAnswerDisplay}
+                                    ${correctAnswerDisplay}
+                                    <p class="text-sm ${isCorrectClass}">Status: ${answer.is_correct ? 'Benar' : 'Salah'}</p>
+                                    <p class="text-sm text-gray-600">Skor Soal: ${answer.score}</p>
+                                `;
+                                answersContentDiv.appendChild(answerItemDiv);
+                            });
+
+                            answersModal.classList.remove('hidden');
+                        } else {
+                            alert('Gagal memuat jawaban: ' + (data.message || 'Terjadi kesalahan.'));
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        alert('Terjadi kesalahan saat memuat jawaban.');
+                    }
+                });
+            });
+
+            closeAnswersModalBtn.addEventListener('click', function() {
+                answersModal.classList.add('hidden');
+            });
+
+            // Tutup modal jika klik di luar konten modal
+            answersModal.addEventListener('click', function(event) {
+                if (event.target === answersModal) {
+                    answersModal.classList.add('hidden');
+                }
             });
         });
     </script>

@@ -18,6 +18,11 @@ class Student extends Model
     /**
      * Definisi relasi: Satu siswa milik satu kelompok.
      */
+    public function tasks()
+    {
+        return $this->belongsToMany(Task::class, 'student_task', 'student_id', 'task_id');
+    }
+
     public function group()
     {
         return $this->belongsTo(Group::class);
@@ -35,5 +40,5 @@ class Student extends Model
     {
         return $this->hasMany(Submission::class);
     }
-    
+
 }

@@ -40,13 +40,15 @@
             </div>
         </div>
 
+        {{-- Bagian Materi Pembelajaran Dihilangkan --}}
+        {{--
         <h3 class="text-2xl font-semibold text-gray-800 mb-4 mt-6">Materi Pembelajaran</h3>
         <div class="space-y-4" id="materials-list">
-            {{-- Materi akan dirender oleh JavaScript --}}
+            -- Materi akan dirender oleh JavaScript --
         </div>
-        {{-- Pesan ini selalu ada di DOM, visibilitasnya diatur oleh JS --}}
         <p class="text-gray-500 text-center" id="no-materials-message" style="display: none;">Belum ada materi yang tersedia
             untuk filter ini.</p>
+        --}}
 
 
         <h3 class="text-2xl font-semibold text-gray-800 mb-4 mt-8">Daftar Tugas</h3>
@@ -59,7 +61,7 @@
     </div>
 
     <script>
-        const allMaterials = @json($materials);
+        const allMaterials = @json($materials); // Tetap ada karena mungkin digunakan di tempat lain atau untuk referensi, tapi tidak ditampilkan.
         const allTasks = @json($tasks);
         const allGroups = @json($groups); // Semua data kelompok dari database
         const allStudents = @json($students); // Semua data siswa dari database
@@ -67,9 +69,9 @@
         const filterClassSelect = document.getElementById('filterClass');
         const filterGroupSelect = document.getElementById('filterGroup');
         const filterStudentSelect = document.getElementById('filterStudent'); // Elemen dropdown siswa
-        const materialsList = document.getElementById('materials-list');
+        // const materialsList = document.getElementById('materials-list'); // Dihapus
+        // const noMaterialsMessage = document.getElementById('no-materials-message'); // Dihapus
         const tasksList = document.getElementById('tasks-list');
-        const noMaterialsMessage = document.getElementById('no-materials-message');
         const noTasksMessage = document.getElementById('no-tasks-message');
 
         let selectedClass = filterClassSelect.value;
@@ -150,51 +152,73 @@
             sessionStorage.setItem('siswa_id', selectedStudent);
 
 
-            // Filter Materi
+            // Filter Materi (Logika ini tetap ada, tapi tidak ada elemen DOM untuk menampilkannya)
             let filteredMaterials = allMaterials.filter(material => {
                 const materialBelongsToSelectedClass = selectedClass === '' || material.class_grade == selectedClass;
                 return materialBelongsToSelectedClass;
             });
 
-            materialsList.innerHTML = ''; // Kosongkan daftar materi
-            if (filteredMaterials.length > 0) {
-                noMaterialsMessage.style.display = 'none'; // Sembunyikan pesan jika ada materi
-                filteredMaterials.forEach(material => {
-                    const materialDiv = document.createElement('div');
-                    materialDiv.classList.add('material-item', 'border', 'border-gray-200', 'p-4', 'rounded-md', 'shadow-sm', 'bg-gray-50');
-                    materialDiv.setAttribute('data-class', material.class_grade);
-                    let contentHtml = '';
-                    if (material.asset_type === 'link') {
-                        contentHtml = `<p class="text-sm text-gray-700 mt-1">Link: <a href="${material.content}" target="_blank" class="text-blue-500 hover:underline break-all">${material.content}</a></p>`;
-                    } else if (material.asset_type === 'file') {
-                        contentHtml = `<p class="text-sm text-gray-700 mt-1">File: <a href="{{ asset('storage/') }}/${material.content}" target="_blank" class="text-blue-500 hover:underline">${material.content.split('/').pop()}</a></p>`;
-                    } else {
-                        contentHtml = `<p class="text-sm text-gray-700 mt-1">Isi Teks: ${material.content}</p>`;
-                    }
-                    materialDiv.innerHTML = `
-                            <p class="font-semibold text-gray-800 text-lg">${material.title}</p>
-                            <p class="text-sm text-gray-600">Kelas: ${material.class_grade}</p>
-                            ${contentHtml}
-                        `;
-                    materialsList.appendChild(materialDiv);
-                });
-            } else {
-                noMaterialsMessage.style.display = 'block'; // Tampilkan pesan jika tidak ada materi
-            }
+            // materialsList.innerHTML = ''; // Dihapus
+            // if (filteredMaterials.length > 0) {
+            //     noMaterialsMessage.style.display = 'none'; // Dihapus
+            //     filteredMaterials.forEach(material => {
+            //         const materialDiv = document.createElement('div');
+            //         materialDiv.classList.add('material-item', 'border', 'border-gray-200', 'p-4', 'rounded-md', 'shadow-sm', 'bg-gray-50');
+            //         materialDiv.setAttribute('data-class', material.class_grade);
+            //         let contentHtml = '';
+            //         if (material.asset_type === 'link') {
+            //             contentHtml = `<p class="text-sm text-gray-700 mt-1">Link: <a href="${material.content}" target="_blank" class="text-blue-500 hover:underline break-all">${material.content}</a></p>`;
+            //         } else if (material.asset_type === 'file') {
+            //             contentHtml = `<p class="text-sm text-gray-700 mt-1">File: <a href="{{ asset('storage/') }}/${material.content}" target="_blank" class="text-blue-500 hover:underline">${material.content.split('/').pop()}</a></p>`;
+            //         } else {
+            //             contentHtml = `<p class="text-sm text-gray-700 mt-1">Isi Teks: ${material.content}</p>`;
+            //         }
+            //         materialDiv.innerHTML = `
+            //                 <p class="font-semibold text-gray-800 text-lg">${material.title}</p>
+            //                 <p class="text-sm text-gray-600">Kelas: ${material.class_grade}</p>
+            //                 ${contentHtml}
+            //             `;
+            //         materialsList.appendChild(materialDiv);
+            //     });
+            // } else {
+            //     noMaterialsMessage.style.display = 'block'; // Dihapus
+            // }
 
             // Filter Tugas
             let filteredTasks = allTasks.filter(task => {
                 const taskBelongsToSelectedClass = selectedClass === '' || task.class_grade == selectedClass;
 
-                // Cek apakah tugas terhubung ke kelompok yang dipilih
-                const taskBelongsToSelectedGroup = selectedGroup === '' || task.groups.some(group => group.id == selectedGroup);
+                // Logika baru untuk memfilter berdasarkan kelompok dan siswa
+                let isTaskRelevantToSelection = false;
 
-                // Cek apakah tugas terhubung ke siswa yang dipilih
-                const taskBelongsToSelectedStudent = selectedStudent === '' || task.students.some(student => student.id == selectedStudent);
+                if (selectedStudent !== '') {
+                    // Jika siswa spesifik dipilih, cek apakah tugas ini ditujukan untuk siswa tersebut
+                    isTaskRelevantToSelection = task.students.some(student => student.id == selectedStudent);
+                } else if (selectedGroup !== '') {
+                    // Jika kelompok spesifik dipilih (dan tidak ada siswa spesifik),
+                    // cek apakah tugas ini ditujukan untuk kelompok tersebut
+                    isTaskRelevantToSelection = task.groups.some(group => group.id == selectedGroup);
+                } else {
+                    // Jika tidak ada siswa atau kelompok spesifik yang dipilih (artinya "Semua Kelompok" atau "Semua Siswa"),
+                    // tugas relevan jika tidak ada batasan kelompok/siswa atau jika tugas ditujukan untuk kelas yang dipilih.
+                    // Ini mencakup tugas yang ditujukan ke semua siswa di kelas tersebut (jika tidak ada group/student relasi)
+                    if (task.groups.length === 0 && task.students.length === 0) {
+                        // Tugas adalah untuk semua siswa di kelasnya
+                        isTaskRelevantToSelection = true;
+                    } else if (task.groups.length > 0 && selectedGroup === '') {
+                        // Jika tugas ditujukan ke beberapa kelompok, dan filter kelompok "Semua Kelompok",
+                        // maka tugas ini relevan
+                        isTaskRelevantToSelection = true;
+                    } else if (task.students.length > 0 && selectedStudent === '') {
+                        // Jika tugas ditujukan ke beberapa siswa, dan filter siswa "Semua Siswa",
+                        // maka tugas ini relevan
+                        isTaskRelevantToSelection = true;
+                    }
+                }
 
-
-                return taskBelongsToSelectedClass && taskBelongsToSelectedGroup && taskBelongsToSelectedStudent;
+                return taskBelongsToSelectedClass && isTaskRelevantToSelection;
             });
+
 
             tasksList.innerHTML = ''; // Kosongkan daftar tugas
             if (filteredTasks.length > 0) {
@@ -203,12 +227,38 @@
                     const taskDiv = document.createElement('div');
                     taskDiv.classList.add('task-item', 'border', 'border-gray-200', 'p-4', 'rounded-md', 'shadow-sm', 'bg-white');
                     taskDiv.setAttribute('data-class', task.class_grade);
-                    taskDiv.setAttribute('data-groups', JSON.stringify(task.groups.map(group => group.id)));
-                    taskDiv.setAttribute('data-students', JSON.stringify(task.students.map(student => student.id))); // Tambahkan data siswa
+                    // Tidak perlu lagi data-groups dan data-students di sini karena kita akan render teksnya langsung
 
                     const deadline = new Date(task.deadline).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' });
-                    const groupsText = task.groups.length > 0 ? task.groups.map(group => group.name).join(', ') : 'Semua Kelompok';
-                    const studentsText = task.students.length > 0 ? task.students.map(student => student.name).join(', ') : 'Semua Siswa';
+
+                    // Logika untuk menampilkan kelompok dan siswa yang terkait
+                    let groupsText = '';
+                    if (task.groups && task.groups.length > 0) {
+                        groupsText = task.groups.map(group => group.name).join(', ');
+                    } else {
+                        // Jika tidak ada kelompok spesifik yang terhubung, cek apakah ada siswa spesifik
+                        // Jika tidak ada keduanya, berarti tugas ini untuk semua siswa di kelas tersebut
+                        if (task.students && task.students.length === 0) {
+                            groupsText = 'Semua Kelompok di Kelas Ini';
+                        } else {
+                            groupsText = 'Tidak Ditujukan ke Kelompok Spesifik';
+                        }
+                    }
+
+                    let studentsText = '';
+                    if (task.students && task.students.length > 0) {
+                        studentsText = task.students.map(student => student.name).join(', ');
+                    } else {
+                        // Jika tidak ada siswa spesifik yang terhubung, dan juga tidak ada kelompok spesifik,
+                        // maka tugas ini untuk semua siswa di kelas tersebut.
+                        // Jika ada kelompok spesifik, tapi tidak ada siswa spesifik, berarti untuk semua siswa di kelompok itu.
+                        if (task.groups && task.groups.length > 0) {
+                            studentsText = 'Semua Siswa di Kelompok Terpilih';
+                        } else {
+                            studentsText = 'Semua Siswa di Kelas Ini';
+                        }
+                    }
+
 
                     taskDiv.innerHTML = `
                             <h4 class="font-semibold text-gray-800 text-lg">${task.title}</h4>
@@ -278,6 +328,14 @@
                         const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
                         element.innerHTML = `Sisa waktu: ${days}h ${hours}j ${minutes}m ${seconds}d`;
+
+                        if (days < 1 && hours < 24) {
+                            deadlineElement.classList.remove('text-blue-700');
+                            deadlineElement.classList.add('text-yellow-700');
+                        } else {
+                            deadlineElement.classList.remove('text-yellow-700', 'text-red-700');
+                            deadlineElement.classList.add('text-blue-700');
+                        }
                     }
 
                     updateSingleCountdown(); // Panggil sekali saat inisialisasi
